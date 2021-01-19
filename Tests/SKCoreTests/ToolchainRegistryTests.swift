@@ -307,6 +307,7 @@ final class ToolchainRegistryTests: XCTestCase {
       XCTAssertNil(t1.clangd)
       XCTAssertNil(t1.swiftc)
 
+#if !os(Windows)
       func chmodRX(_ path: AbsolutePath) {
         XCTAssertEqual(chmod(path.pathString, S_IRUSR | S_IXUSR), 0)
       }
@@ -315,6 +316,7 @@ final class ToolchainRegistryTests: XCTestCase {
       chmodRX(path.appending(components: "bin", "clangd"))
       chmodRX(path.appending(components: "bin", "swiftc"))
       chmodRX(path.appending(components: "bin", "other"))
+#endif
 
       let t2 = Toolchain(path.parentDirectory, fs)!
       XCTAssertNotNil(t2.sourcekitd)
@@ -511,31 +513,35 @@ private func makeToolchain(
 
   let makeExec = { (path: AbsolutePath) in
     try! fs.writeFileContents(path , bytes: "")
+#if !os(Windows)
     if shouldChmod {
       XCTAssertEqual(chmod(path.pathString, S_IRUSR | S_IXUSR), 0)
     }
+#endif
   }
+
+  let execExt = Platform.currentPlatform?.executableExtension ?? ""
 
   if clang {
-    makeExec(binPath.appending(component: "clang"))
+    makeExec(binPath.appending(component: "clang\(execExt)"))
   }
   if clangd {
-    makeExec(binPath.appending(component: "clangd"))
+    makeExec(binPath.appending(component: "clangd\(execExt)"))
   }
   if swiftc {
-    makeExec(binPath.appending(component: "swiftc"))
+    makeExec(binPath.appending(component: "swiftc\(execExt)"))
   }
 
-  let dylibExt = Platform.currentPlatform?.dynamicLibraryExtension ?? "so"
+  let dylibExt = Platform.currentPlatform?.dynamicLibraryExtension ?? ".so"
 
   if sourcekitd {
     try! fs.createDirectory(libPath.appending(component: "sourcekitd.framework"))
     try! fs.writeFileContents(libPath.appending(components: "sourcekitd.framework", "sourcekitd") , bytes: "")
   }
   if sourcekitdInProc {
-    try! fs.writeFileContents(libPath.appending(component: "libsourcekitdInProc.\(dylibExt)") , bytes: "")
+    try! fs.writeFileContents(libPath.appending(component: "libsourcekitdInProc\(dylibExt)") , bytes: "")
   }
   if libIndexStore {
-    try! fs.writeFileContents(libPath.appending(component: "libIndexStore.\(dylibExt)") , bytes: "")
+    try! fs.writeFileContents(libPath.appending(component: "libIndexStore\(dylibExt)") , bytes: "")
   }
 }

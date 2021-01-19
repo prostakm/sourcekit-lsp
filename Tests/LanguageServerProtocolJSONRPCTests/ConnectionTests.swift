@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -14,6 +14,10 @@ import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import LSPTestSupport
 import XCTest
+
+#if os(Windows)
+import WinSDK
+#endif
 
 // Workaround ambiguity with Foundation.
 typealias Notification = LanguageServerProtocol.Notification
@@ -211,6 +215,20 @@ class ConnectionTests: XCTestCase {
 
     waitForExpectations(timeout: 10)
   }
+  
+  func testSendSynchronouslyBeforeClose() {
+    let client = connection.client
+
+    let expectation = self.expectation(description: "received notification")
+    client.handleNextNotification { (note: Notification<EchoNotification>) in
+      expectation.fulfill()
+    }
+    let notification = EchoNotification(string: "about to close!")
+    connection.serverConnection._send(.notification(notification), async: false)
+    connection.serverConnection.close()
+
+    waitForExpectations(timeout: 10)
+  }
 
   /// We can explicitly close a connection, but the connection also
   /// automatically closes itself if the pipe is closed (or has an error).
@@ -226,8 +244,8 @@ class ConnectionTests: XCTestCase {
 
       let conn = JSONRPCConnection(
         protocol: MessageRegistry(requests: [], notifications: []),
-        inFD: to.fileHandleForReading.fileDescriptor,
-        outFD: from.fileHandleForWriting.fileDescriptor)
+        inFD: to.fileHandleForReading,
+        outFD: from.fileHandleForWriting)
 
       final class DummyHandler: MessageHandler {
         func handle<N: NotificationType>(_: N, from: ObjectIdentifier) {}
@@ -237,11 +255,20 @@ class ConnectionTests: XCTestCase {
       conn.start(receiveHandler: DummyHandler(), closeHandler: {
         // We get an error from XCTest if this is fulfilled more than once.
         expectation.fulfill()
+
+        // FIXME: keep the pipes alive until we close the connection. This
+        // should be fixed systemically.
+        withExtendedLifetime((to, from)) {}
       })
 
       to.fileHandleForWriting.closeFile()
+#if os(Windows)
+      // 1 ms was chosen for simplicity.
+      _ = Sleep(1)
+#else
       // 100 us was chosen empirically to encourage races.
       usleep(100)
+#endif
       conn.close()
 
       waitForExpectations(timeout: 10)

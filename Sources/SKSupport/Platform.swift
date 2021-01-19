@@ -17,8 +17,16 @@ extension Platform {
   /// The file extension used for a dynamic library on this platform.
   public var dynamicLibraryExtension: String {
     switch self {
-    case .darwin: return "dylib"
-    case .linux, .android: return "so"
+    case .darwin: return ".dylib"
+    case .linux, .android: return ".so"
+    case .windows: return ".dll"
+    }
+  }
+
+  public var executableExtension: String {
+    switch self {
+    case .windows: return ".exe"
+    case .linux, .android, .darwin: return ""
     }
   }
 }

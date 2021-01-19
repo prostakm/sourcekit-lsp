@@ -1,4 +1,4 @@
-// swift-tools-version:5.1
+// swift-tools-version:5.3
 
 import PackageDescription
 
@@ -8,6 +8,11 @@ let package = Package(
       .executable(
         name: "sourcekit-lsp",
         targets: ["sourcekit-lsp"]
+      ),
+      .library(
+        name: "_SourceKitLSP",
+        type: .dynamic,
+        targets: ["SourceKitLSP"]
       ),
       .library(
         name: "LSPBindings",
@@ -26,24 +31,25 @@ let package = Package(
         name: "sourcekit-lsp",
         dependencies: [
           "LanguageServerProtocolJSONRPC",
-          "SourceKit",
-          "SwiftToolsSupport-auto",
-        ]
-      ),
+          "SourceKitLSP",
+          .product(name: "ArgumentParser", package: "swift-argument-parser"),
+          .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+        ],
+        exclude: ["CMakeLists.txt"]),
 
       .target(
-        name: "SourceKit",
+        name: "SourceKitLSP",
         dependencies: [
-          "Csourcekitd",
           "BuildServerProtocol",
           "IndexStoreDB",
           "LanguageServerProtocol",
           "LanguageServerProtocolJSONRPC",
           "SKCore",
+          "SourceKitD",
           "SKSwiftPMWorkspace",
-          "SwiftToolsSupport-auto",
-        ]
-      ),
+          .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+        ],
+        exclude: ["CMakeLists.txt"]),
 
       .target(
         name: "CSKTestSupport",
@@ -52,18 +58,21 @@ let package = Package(
         name: "SKTestSupport",
         dependencies: [
           "CSKTestSupport",
-          "ISDBTestSupport",
           "LSPTestSupport",
-          "SourceKit",
-          "tibs", // Never imported, needed at runtime
-          "SwiftToolsSupport-auto",
+          "SourceKitLSP",
+          .product(name: "ISDBTestSupport", package: "IndexStoreDB"),
+          .product(name: "tibs", package: "IndexStoreDB"), // Never imported, needed at runtime
+          .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+        ], 
+        resources: [
+          .copy("INPUTS"),
         ]
       ),
       .testTarget(
-        name: "SourceKitTests",
+        name: "SourceKitLSPTests",
         dependencies: [
           "SKTestSupport",
-          "SourceKit",
+          "SourceKitLSP",
         ]
       ),
 
@@ -73,22 +82,17 @@ let package = Package(
           "BuildServerProtocol",
           "LanguageServerProtocol",
           "SKCore",
-          "SwiftPM-auto",
-        ]
-      ),
+          .product(name: "SwiftPM-auto", package: "SwiftPM")
+        ],
+        exclude: ["CMakeLists.txt"]),
+
       .testTarget(
         name: "SKSwiftPMWorkspaceTests",
         dependencies: [
           "SKSwiftPMWorkspace",
           "SKTestSupport",
-          "SwiftToolsSupport-auto",
+          .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         ]
-      ),
-
-      // Csourcekitd: C modules wrapper for sourcekitd.
-      .target(
-        name: "Csourcekitd",
-        dependencies: []
       ),
 
       // SKCore: Data structures and algorithms useful across the project, but not necessarily
@@ -96,13 +100,15 @@ let package = Package(
       .target(
         name: "SKCore",
         dependencies: [
+          "SourceKitD",
           "BuildServerProtocol",
           "LanguageServerProtocol",
           "LanguageServerProtocolJSONRPC",
           "SKSupport",
-          "SwiftToolsSupport-auto",
-        ]
-      ),
+          .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+        ],
+        exclude: ["CMakeLists.txt"]),
+
       .testTarget(
         name: "SKCoreTests",
         dependencies: [
@@ -111,11 +117,37 @@ let package = Package(
         ]
       ),
 
+      // SourceKitD: Swift bindings for sourcekitd.
+      .target(
+        name: "SourceKitD",
+        dependencies: [
+          "Csourcekitd",
+          "LSPLogging",
+          "SKSupport",
+          .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+        ],
+        exclude: ["CMakeLists.txt"]),
+
+      .testTarget(
+        name: "SourceKitDTests",
+        dependencies: [
+          "SourceKitD",
+          "SKCore",
+          "SKTestSupport",
+        ]
+      ),
+
+      // Csourcekitd: C modules wrapper for sourcekitd.
+      .target(
+        name: "Csourcekitd",
+        dependencies: [],
+        exclude: ["CMakeLists.txt"]),
+
       // Logging support used in LSP modules.
       .target(
         name: "LSPLogging",
-        dependencies: []
-      ),
+        dependencies: [],
+        exclude: ["CMakeLists.txt"]),
 
       .testTarget(
         name: "LSPLoggingTests",
@@ -138,8 +170,9 @@ let package = Package(
         dependencies: [
           "LanguageServerProtocol",
           "LSPLogging",
-        ]
-      ),
+        ],
+        exclude: ["CMakeLists.txt"]),
+
       .testTarget(
         name: "LanguageServerProtocolJSONRPCTests",
         dependencies: [
@@ -151,8 +184,9 @@ let package = Package(
       // LanguageServerProtocol: The core LSP types, suitable for any LSP implementation.
       .target(
         name: "LanguageServerProtocol",
-        dependencies: []
-      ),
+        dependencies: [],
+        exclude: ["CMakeLists.txt"]),
+
       .testTarget(
         name: "LanguageServerProtocolTests",
         dependencies: [
@@ -166,17 +200,18 @@ let package = Package(
         name: "BuildServerProtocol",
         dependencies: [
           "LanguageServerProtocol"
-        ]
-      ),
+        ],
+        exclude: ["CMakeLists.txt"]),
 
       // SKSupport: Data structures, algorithms and platform-abstraction code that might be generally
       // useful to any Swift package. Similar in spirit to SwiftPM's Basic module.
       .target(
         name: "SKSupport",
         dependencies: [
-          "SwiftToolsSupport-auto"
-        ]
-      ),
+          .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+        ],
+        exclude: ["CMakeLists.txt"]),
+
       .testTarget(
         name: "SKSupportTests",
         dependencies: [
@@ -194,23 +229,21 @@ let package = Package(
 // by the external environment. This allows sourcekit-lsp to take advantage of the automation used
 // for building the swift toolchain, such as `update-checkout`, or cross-repo PR tests.
 
-#if canImport(Glibc)
-import Glibc
-#else
-import Darwin.C
-#endif
+import Foundation
 
-if getenv("SWIFTCI_USE_LOCAL_DEPS") == nil {
+if ProcessInfo.processInfo.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
   // Building standalone.
   package.dependencies += [
-    .package(url: "https://github.com/apple/indexstore-db.git", .branch("master")),
-    .package(url: "https://github.com/apple/swift-package-manager.git", .branch("master")),
-    .package(url: "https://github.com/apple/swift-tools-support-core.git", .branch("master")),
+    .package(name: "IndexStoreDB", url: "https://github.com/apple/indexstore-db.git", .branch("main")),
+    .package(name: "SwiftPM", url: "https://github.com/apple/swift-package-manager.git", .branch("main")),
+    .package(url: "https://github.com/apple/swift-tools-support-core.git", .branch("main")),
+    .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMinor(from: "0.3.0")),
   ]
 } else {
   package.dependencies += [
-    .package(path: "../indexstore-db"),
-    .package(path: "../swiftpm"),
-    .package(path: "../swiftpm/swift-tools-support-core"),
+    .package(name: "IndexStoreDB", path: "../indexstore-db"),
+    .package(name: "SwiftPM", path: "../swiftpm"),
+    .package(path: "../swift-tools-support-core"),
+    .package(path: "../swift-argument-parser")
   ]
 }

@@ -18,7 +18,7 @@ import XCTest
 
 final class CompilationDatabaseTests: XCTestCase {
   func testSplitShellEscapedCommand() {
-    func check(_ str: String, _ expected: [String], file: StaticString=#file, line: UInt=#line) {
+    func check(_ str: String, _ expected: [String], file: StaticString=#filePath, line: UInt=#line) {
       XCTAssertEqual(splitShellEscapedCommand(str), expected, file: file, line: line)
     }
 
@@ -61,7 +61,7 @@ final class CompilationDatabaseTests: XCTestCase {
   func testEncodeCompDBCommand() {
     // Requires JSONEncoder.OutputFormatting.sortedKeys
     if #available(macOS 10.13, *) {
-      func check(_ cmd: CompilationDatabase.Command, _ expected: String, file: StaticString = #file, line: UInt = #line) {
+      func check(_ cmd: CompilationDatabase.Command, _ expected: String, file: StaticString = #filePath, line: UInt = #line) {
         let encoder = JSONEncoder()
         encoder.outputFormatting.insert(.sortedKeys)
         let encodedString = try! String(data: encoder.encode(cmd), encoding: .utf8)
@@ -78,7 +78,7 @@ final class CompilationDatabaseTests: XCTestCase {
   }
 
   func testDecodeCompDBCommand() {
-    func check(_ str: String, _ expected: CompilationDatabase.Command, file: StaticString = #file, line: UInt = #line) {
+    func check(_ str: String, _ expected: CompilationDatabase.Command, file: StaticString = #filePath, line: UInt = #line) {
       let cmd = try! JSONDecoder().decode(CompilationDatabase.Command.self, from: str.data(using: .utf8)!)
       XCTAssertEqual(cmd, expected, file: file, line: line)
     }
@@ -197,10 +197,10 @@ final class CompilationDatabaseTests: XCTestCase {
       }
     ]
     """) { buildSystem in
-      let settings = buildSystem.settings(for: DocumentURI(URL(fileURLWithPath: "/a/a.swift")), .swift)
+      let settings = buildSystem._settings(for: DocumentURI(URL(fileURLWithPath: "/a/a.swift")))
       XCTAssertNotNil(settings)
       XCTAssertEqual(settings?.workingDirectory, "/a")
-      XCTAssertEqual(settings?.compilerArguments, ["-swift-version", "4", "/a/a.swift", "-working-directory", "/a"])
+      XCTAssertEqual(settings?.compilerArguments, ["-swift-version", "4", "/a/a.swift"])
       XCTAssertNil(buildSystem.indexStorePath)
       XCTAssertNil(buildSystem.indexDatabasePath)
     }
@@ -222,8 +222,8 @@ final class CompilationDatabaseTests: XCTestCase {
       }
     ]
     """) { buildSystem in
-      XCTAssertEqual(buildSystem.indexStorePath, AbsolutePath("/b"))
-      XCTAssertEqual(buildSystem.indexDatabasePath, AbsolutePath("/IndexDatabase"))
+      XCTAssertEqual(URL(fileURLWithPath: buildSystem.indexStorePath?.pathString ?? "").path, "/b")
+      XCTAssertEqual(URL(fileURLWithPath: buildSystem.indexDatabasePath?.pathString ?? "").path, "/IndexDatabase")
     }
   }
 
@@ -299,16 +299,16 @@ final class CompilationDatabaseTests: XCTestCase {
       }
     ]
     """) { buildSystem in
-      XCTAssertEqual(buildSystem.indexStorePath, AbsolutePath("/b"))
-      XCTAssertEqual(buildSystem.indexDatabasePath, AbsolutePath("/IndexDatabase"))
+      XCTAssertEqual(URL(fileURLWithPath: buildSystem.indexStorePath?.pathString ?? "").path, "/b")
+      XCTAssertEqual(URL(fileURLWithPath: buildSystem.indexDatabasePath?.pathString ?? "").path, "/IndexDatabase")
     }
   }
 }
 
-private func checkCompilationDatabaseBuildSystem(_ compdb: ByteString, file: StaticString = #file, line: UInt = #line, block: (BuildSystem) -> ()) {
+private func checkCompilationDatabaseBuildSystem(_ compdb: ByteString, file: StaticString = #filePath, line: UInt = #line, block: (CompilationDatabaseBuildSystem) -> ()) {
   let fs = InMemoryFileSystem()
   XCTAssertNoThrow(try fs.createDirectory(AbsolutePath("/a")), file: file, line: line)
   XCTAssertNoThrow(try fs.writeFileContents(AbsolutePath("/a/compile_commands.json"), bytes: compdb), file: file, line: line)
-  let buildSystem: BuildSystem = CompilationDatabaseBuildSystem(projectRoot: AbsolutePath("/a"), fileSystem: fs)
+  let buildSystem = CompilationDatabaseBuildSystem(projectRoot: AbsolutePath("/a"), fileSystem: fs)
   block(buildSystem)
 }

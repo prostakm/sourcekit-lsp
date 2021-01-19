@@ -127,39 +127,49 @@ extension Toolchain {
 
     var foundAny = false
 
-    let clangPath = binPath.appending(component: "clang")
+    let execExt = Platform.currentPlatform?.executableExtension ?? ""
+
+    let clangPath = binPath.appending(component: "clang\(execExt)")
     if fs.isExecutableFile(clangPath) {
       self.clang = clangPath
       foundAny = true
     }
-    let clangdPath = binPath.appending(component: "clangd")
+    let clangdPath = binPath.appending(component: "clangd\(execExt)")
     if fs.isExecutableFile(clangdPath) {
       self.clangd = clangdPath
       foundAny = true
     }
 
-    let swiftcPath = binPath.appending(component: "swiftc")
+    let swiftcPath = binPath.appending(component: "swiftc\(execExt)")
     if fs.isExecutableFile(swiftcPath) {
       self.swiftc = swiftcPath
       foundAny = true
     }
 
     // If 'currentPlatform' is nil it's most likely an unknown linux flavor.
-    let dylibExt = Platform.currentPlatform?.dynamicLibraryExtension ?? "so"
+    let dylibExt = Platform.currentPlatform?.dynamicLibraryExtension ?? ".so"
 
     let sourcekitdPath = libPath.appending(components: "sourcekitd.framework", "sourcekitd")
     if fs.isFile(sourcekitdPath) {
       self.sourcekitd = sourcekitdPath
       foundAny = true
     } else {
-      let sourcekitdPath = libPath.appending(component: "libsourcekitdInProc.\(dylibExt)")
+#if os(Windows)
+      let sourcekitdPath = binPath.appending(component: "sourcekitdInProc\(dylibExt)")
+#else
+      let sourcekitdPath = libPath.appending(component: "libsourcekitdInProc\(dylibExt)")
+#endif
       if fs.isFile(sourcekitdPath) {
         self.sourcekitd = sourcekitdPath
         foundAny = true
       }
     }
 
-    let libIndexStore = libPath.appending(components: "libIndexStore.\(dylibExt)")
+#if os(Windows)
+    let libIndexStore = binPath.appending(components: "libIndexStore\(dylibExt)")
+#else
+    let libIndexStore = libPath.appending(components: "libIndexStore\(dylibExt)")
+#endif
     if fs.isFile(libIndexStore) {
       self.libIndexStore = libIndexStore
       foundAny = true

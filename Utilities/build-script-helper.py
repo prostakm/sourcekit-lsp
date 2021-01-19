@@ -18,7 +18,7 @@ def swiftpm_bin_path(swift_exec, swiftpm_args, env=None):
   swiftpm_args = list(filter(lambda arg: arg != '-v' and arg != '--verbose', swiftpm_args))
   cmd = [swift_exec, 'build', '--show-bin-path'] + swiftpm_args
   print(' '.join(cmd))
-  return subprocess.check_output(cmd, env=env).strip()
+  return subprocess.check_output(cmd, env=env, universal_newlines=True).strip()
 
 def get_swiftpm_options(args):
   swiftpm_args = [
@@ -71,7 +71,7 @@ def install(swiftpm_bin_path, toolchain):
     install_binary(exe, swiftpm_bin_path, toolchain_bin, toolchain)
 
 def install_binary(exe, source_dir, install_dir, toolchain):
-  cmd = ['rsync', '-a', os.path.join(source_dir.decode('UTF-8'), exe), install_dir]
+  cmd = ['rsync', '-a', os.path.join(source_dir, exe), install_dir]
   print(' '.join(cmd))
   subprocess.check_call(cmd)
 
@@ -86,21 +86,13 @@ def delete_rpath(rpath, binary):
   subprocess.check_call(cmd)
 
 
-def should_test_parallel():
-  if platform.system() == 'Linux':
-    distro = platform.linux_distribution()
-    if distro[0] != 'Ubuntu':
-      # Workaround hang in Process.run() that hasn't been tracked down yet.
-      return False
-  return True
-
-
 def handle_invocation(swift_exec, args):
   swiftpm_args = get_swiftpm_options(args)
 
   env = os.environ
   # Set the toolchain used in tests at runtime
   env['SOURCEKIT_TOOLCHAIN_PATH'] = args.toolchain
+  env['INDEXSTOREDB_TOOLCHAIN_BIN_PATH'] = args.toolchain
   # Use local dependencies (i.e. checked out next sourcekit-lsp).
   if not args.no_local_deps:
     env['SWIFTCI_USE_LOCAL_DEPS'] = "1"
@@ -128,8 +120,10 @@ def handle_invocation(swift_exec, args):
     print('Cleaning ' + tests)
     shutil.rmtree(tests, ignore_errors=True)
     test_args = swiftpm_args
-    if should_test_parallel():
-      test_args += ['--parallel']
+    # Running the tests concurrently doesn't work with glibc 2.24 because of a
+    # bug with posix_spawn called from Foundation, so it'll need to be disabled
+    # or fixed when used there, according to @benlangmuir.
+    test_args += ['--parallel']
     swiftpm('test', swift_exec, test_args, env)
   elif args.action == 'install':
     bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, env)

@@ -10,6 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if canImport(CDispatch)
+import struct CDispatch.dispatch_fd_t
+#endif
 import Dispatch
 import Foundation
 import LanguageServerProtocol
@@ -56,8 +59,8 @@ public final class JSONRPCConnection {
 
   public init(
     protocol messageRegistry: MessageRegistry,
-    inFD: Int32,
-    outFD: Int32,
+    inFD: FileHandle,
+    outFD: FileHandle,
     syncRequests: Bool = false)
   {
     state = .created
@@ -66,16 +69,28 @@ public final class JSONRPCConnection {
 
     let ioGroup = DispatchGroup()
 
+#if os(Windows)
+    let rawInFD = dispatch_fd_t(bitPattern: inFD._handle)
+#else
+    let rawInFD = inFD.fileDescriptor
+#endif
+
     ioGroup.enter()
-    receiveIO = DispatchIO(type: .stream, fileDescriptor: inFD, queue: queue) { (error: Int32) in
+    receiveIO = DispatchIO(type: .stream, fileDescriptor: rawInFD, queue: queue) { (error: Int32) in
       if error != 0 {
         log("IO error \(error)", level: .error)
       }
       ioGroup.leave()
     }
 
+#if os(Windows)
+    let rawOutFD = dispatch_fd_t(bitPattern: outFD._handle)
+#else
+    let rawOutFD = outFD.fileDescriptor
+#endif
+
     ioGroup.enter()
-    sendIO = DispatchIO(type: .stream, fileDescriptor: outFD, queue: sendQueue) { (error: Int32) in
+    sendIO = DispatchIO(type: .stream, fileDescriptor: rawOutFD, queue: sendQueue) { (error: Int32) in
       if error != 0 {
         log("IO error \(error)", level: .error)
       }
@@ -156,6 +171,13 @@ public final class JSONRPCConnection {
     }
     return ready
   }
+  
+  /// *Public for testing*
+  public func _send(_ message: JSONRPCMessage, async: Bool = true) {
+    send(async: async) { encoder in
+      try encoder.encode(message)
+    }
+  }
 
   /// Parse and handle all messages in `bytes`, returning a slice containing any remaining incomplete data.
   func parseAndHandleMessages(from bytes: UnsafeBufferPointer<UInt8>) -> UnsafeBufferPointer<UInt8>.SubSequence {
@@ -193,9 +215,7 @@ public final class JSONRPCConnection {
         switch error.messageKind {
           case .request:
             if let id = error.id {
-              send { encoder in
-                try encoder.encode(JSONRPCMessage.errorResponse(ResponseError(error), id: id))
-              }
+              _send(.errorResponse(ResponseError(error), id: id))
               continue MESSAGE_LOOP
             }
           case .response:
@@ -213,12 +233,18 @@ public final class JSONRPCConnection {
               continue MESSAGE_LOOP
             }
           case .unknown:
+            _send(.errorResponse(ResponseError(error), id: nil),
+                 async: false) // synchronous because the following fatalError
             break
         }
         // FIXME: graceful shutdown?
         fatalError("fatal error encountered decoding message \(error)")
 
       } catch {
+        let responseError = ResponseError(code: .parseError,
+                                          message: "Failed to decode message. \(error.localizedDescription)")
+        _send(.errorResponse(responseError, id: nil),
+             async: false) // synchronous because the following fatalError
         // FIXME: graceful shutdown?
         fatalError("fatal error encountered decoding message \(error)")
       }
@@ -245,8 +271,12 @@ public final class JSONRPCConnection {
       }
       outstanding.replyHandler(.success(response))
     case .errorResponse(let error, id: let id):
+      guard let id = id else {
+        log("Received error response for unknown request: \(error.message)", level: .error)
+        return
+      }
       guard let outstanding = outstandingRequests.removeValue(forKey: id) else {
-        log("Unknown request for \(id)", level: .error)
+        log("No outstanding requests for request ID \(id)", level: .error)
         return
       }
       outstanding.replyHandler(.failure(error))
@@ -254,7 +284,8 @@ public final class JSONRPCConnection {
   }
 
   /// *Public for testing*.
-  public func send(_rawData dispatchData: DispatchData) {
+  public func send(_rawData dispatchData: DispatchData,
+                   handleCompletion: (() -> Void)? = nil) {
     guard readyToSend() else { return }
 
     sendIO.write(offset: 0, data: dispatchData, queue: sendQueue) { [weak self] done, _, errorCode in
@@ -263,13 +294,16 @@ public final class JSONRPCConnection {
         if done {
           self?.queue.async {
             self?._close()
+            handleCompletion?()
           }
         }
+      } else if done {
+        handleCompletion?()
       }
     }
   }
 
-  func send(messageData: Data) {
+  func send(messageData: Data, handleCompletion: (() -> Void)? = nil) {
 
     var dispatchData = DispatchData.empty
     let header = "Content-Length: \(messageData.count)\r\n\r\n"
@@ -280,10 +314,22 @@ public final class JSONRPCConnection {
       dispatchData.append(rawBufferPointer)
     }
 
-    send(_rawData: dispatchData)
+    send(_rawData: dispatchData, handleCompletion: handleCompletion)
   }
 
-  func send(encoding: (JSONEncoder) throws -> Data) {
+  private func sendMessageSynchronously(_ messageData: Data,
+                                        timeoutInSeconds seconds: Int) {
+    let synchronizationSemaphore = DispatchSemaphore(value: 0)
+    
+    send(messageData: messageData) {
+        synchronizationSemaphore.signal()
+    }
+    
+    // blocks until timeout expires or message sending completes
+    _ = synchronizationSemaphore.wait(timeout: .now() + .seconds(seconds))
+  }
+  
+  func send(async: Bool = true, encoding: (JSONEncoder) throws -> Data) {
     guard readyToSend() else { return }
 
     let encoder = JSONEncoder()
@@ -297,7 +343,11 @@ public final class JSONRPCConnection {
       fatalError("unexpected error while encoding response: \(error)")
     }
 
-    send(messageData: data)
+    if async {
+      send(messageData: data)
+    } else {
+      sendMessageSynchronously(data, timeoutInSeconds: 3)
+    }
   }
 
   /// Close the connection.

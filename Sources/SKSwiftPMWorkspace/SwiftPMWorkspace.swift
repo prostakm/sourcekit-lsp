@@ -20,9 +20,11 @@ import LSPLogging
 import PackageGraph
 import PackageLoading
 import PackageModel
+import SourceControl
 import SKCore
 import SKSupport
 import Workspace
+import Dispatch
 import struct Foundation.URL
 
 /// Swift Package Manager build system and workspace support.
@@ -85,32 +87,35 @@ public final class SwiftPMWorkspace {
 
     let buildPath: AbsolutePath = buildSetup.path ?? packageRoot.appending(component: ".build")
 
+    let workspaceConfiguration = try Workspace.Configuration(path: packageRoot.appending(components: ".swiftpm", "config"), fs: fileSystem)
+
     self.workspace = Workspace(
       dataPath: buildPath,
       editablesPath: packageRoot.appending(component: "Packages"),
       pinsFile: packageRoot.appending(component: "Package.resolved"),
       manifestLoader: ManifestLoader(manifestResources: toolchain.manifestResources, cacheDir: buildPath),
       delegate: BuildSettingProviderWorkspaceDelegate(),
+        config: workspaceConfiguration,
       fileSystem: fileSystem,
       skipUpdate: true)
 
     let triple = toolchain.triple
 
-    let swiftPMConfiguration: PackageModel.BuildConfiguration
+    let buildConfiguration: PackageModel.BuildConfiguration
     switch buildSetup.configuration {
     case .debug:
-      swiftPMConfiguration = .debug
+      buildConfiguration = .debug
     case .release:
-      swiftPMConfiguration = .release
+      buildConfiguration = .release
     }
 
     self.buildParameters = BuildParameters(
       dataPath: buildPath.appending(component: triple.tripleString),
-      configuration: swiftPMConfiguration,
+      configuration: buildConfiguration,
       toolchain: toolchain,
       flags: buildSetup.flags)
 
-    self.packageGraph = PackageGraph(rootPackages: [], requiredDependencies: [])
+    self.packageGraph = try PackageGraph(rootPackages: [], dependencies: [])
 
     try reloadPackage()
   }
@@ -148,8 +153,8 @@ extension SwiftPMWorkspace {
       log(diag.localizedDescription, level: diag.behavior.asLogLevel)
     }])
 
-    self.packageGraph = self.workspace.loadPackageGraph(
-      root: PackageGraphRootInput(packages: [packageRoot]),
+    self.packageGraph = try self.workspace.loadPackageGraph(
+      rootInput: PackageGraphRootInput(packages: [packageRoot]),
       diagnostics: diags)
 
     let plan = try BuildPlan(
@@ -225,10 +230,14 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     return nil
   }
 
-  /// Register the given file for build-system level change notifications, such as command
-  /// line flag changes, dependency changes, etc.
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+    guard let delegate = self.delegate else { return }
+
     // TODO: Support for change detection (via file watching)
+    let settings = self.settings(for: uri, language)
+    DispatchQueue.global().async {
+      delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+    }
   }
 
   /// Unregister the given file for build-system level change notifications, such as command
@@ -293,7 +302,7 @@ extension SwiftPMWorkspace {
     func impl(_ path: AbsolutePath) -> FileBuildSettings? {
       for package in packageGraph.packages where path == package.manifest.path {
         let compilerArgs = workspace.interpreterFlags(for: package.path) + [path.pathString]
-        return FileBuildSettings(compilerArguments: compilerArgs, language: .swift)
+        return FileBuildSettings(compilerArguments: compilerArgs)
       }
       return nil
     }
@@ -353,8 +362,7 @@ extension SwiftPMWorkspace {
 
     return FileBuildSettings(
       compilerArguments: args,
-      workingDirectory: workspacePath.pathString,
-      language: .swift)
+      workingDirectory: workspacePath.pathString)
   }
 
   /// Retrieve settings for the given C-family language file, which is part of a known target build
@@ -370,7 +378,11 @@ extension SwiftPMWorkspace {
 
     var args = td.basicArguments()
 
-    let compilePath = td.compilePaths().first(where: { $0.source == path })
+    let nativePath: AbsolutePath =
+        URL(fileURLWithPath: path.pathString).withUnsafeFileSystemRepresentation {
+          AbsolutePath(String(cString: $0!))
+        }
+    let compilePath = td.compilePaths().first(where: { $0.source == nativePath })
     if let compilePath = compilePath {
       args += [
         "-MD",
@@ -416,8 +428,7 @@ extension SwiftPMWorkspace {
 
     return FileBuildSettings(
       compilerArguments: args,
-      workingDirectory: workspacePath.pathString,
-      language: language)
+      workingDirectory: workspacePath.pathString)
   }
 }
 
