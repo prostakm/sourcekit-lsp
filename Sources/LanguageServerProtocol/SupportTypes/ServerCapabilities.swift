@@ -476,10 +476,21 @@ public struct SemanticTokensRegistrationOptions: Codable, Hashable {
 
   public var legend: TokenLegend
 
-  public init(legend: TokenLegend = TokenLegend()) {
+  public var full: Full
+
+  public init(legend: TokenLegend = TokenLegend(), full: Full = Full()) {
     self.legend = legend
+	self.full = full
   }
 }
+
+public struct Full: Codable, Hashable {
+	public var delta: Bool = false
+	public init(delta: Bool = false) {
+		self.delta = delta
+	}
+}
+
 
 public struct WorkspaceServerCapabilities: Codable, Hashable {
   public struct WorkspaceFolders: Codable, Hashable {

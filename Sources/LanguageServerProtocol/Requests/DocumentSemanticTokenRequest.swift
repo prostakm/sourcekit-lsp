@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 public struct DocumentSemanticTokenRequest: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/semanticTokens"
+  public static let method: String = "textDocument/semanticTokens/full"
   public typealias Response = DocumentSemanticTokenResponse?
 
   /// The document in which to lookup the symbol location.
