@@ -13,7 +13,7 @@
 import LanguageServerProtocol
 import LSPTestSupport
 import SKTestSupport
-import SourceKit
+import SourceKitD
 import XCTest
 
 final class DocumentSemanticTokenTest: XCTestCase {

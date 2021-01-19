@@ -55,9 +55,11 @@ public struct sourcekitd_keys {
   public let substructure: sourcekitd_uid_t
   public let syntactic_only: sourcekitd_uid_t
   public let syntaxmap: sourcekitd_uid_t
+	public let enable_syntaxmap: sourcekitd_uid_t
   public let text: sourcekitd_uid_t
   public let typename: sourcekitd_uid_t
   public let usr: sourcekitd_uid_t
+
 
   // Code Completion options.
   public let codecomplete_options: sourcekitd_uid_t
@@ -129,6 +131,7 @@ public struct sourcekitd_keys {
     codecomplete_addinneroperators = api.uid_get_from_cstr("key.codecomplete.addinneroperators")!
     codecomplete_callpatternheuristics = api.uid_get_from_cstr("key.codecomplete.callpatternheuristics")!
     codecomplete_showtopnonliteralresults = api.uid_get_from_cstr("key.codecomplete.showtopnonliteralresults")!
+	enable_syntaxmap = api.uid_get_from_cstr("key.enablesyntaxmap")!
   }
 }
 
@@ -247,6 +250,9 @@ public struct sourcekitd_values {
   public let syntaxtype_doccomment: sourcekitd_uid_t
   public let syntaxtype_doccomment_field: sourcekitd_uid_t
   public let expr_object_literal: sourcekitd_uid_t
+	public let syntaxtype_keyword: sourcekitd_uid_t
+	public let syntaxtype_type_identifier: sourcekitd_uid_t
+	public let expr_call: sourcekitd_uid_t
 
   public let kind_keyword: sourcekitd_uid_t
 
@@ -341,5 +347,8 @@ public struct sourcekitd_values {
     expr_object_literal = api.uid_get_from_cstr("source.lang.swift.expr.object_literal")!
 
     kind_keyword = api.uid_get_from_cstr("source.lang.swift.keyword")!
+	syntaxtype_keyword = api.uid_get_from_cstr("source.lang.swift.syntaxtype.keyword")!
+	syntaxtype_type_identifier = api.uid_get_from_cstr("source.lang.swift.syntaxtype.typeidentifier")!
+	expr_call = api.uid_get_from_cstr("source.lang.swift.expr.call")!
   }
 }

@@ -1,4 +1,4 @@
-import sourcekitd
+import SourceKitD
 import LanguageServerProtocol
 import IndexStoreDB
 
@@ -13,17 +13,17 @@ public struct SemanticToken {
 
 final class SemanticTokenParser {
 
-  private let sourcekitd: SwiftSourceKitFramework
+  private let sourcekitd: SourceKitD
   private let snapshot: DocumentSnapshot
   private let indexedSymbolNames: [String]
 
-  init(sourcekitd: SwiftSourceKitFramework, snapshot: DocumentSnapshot, symbolNames: [String]) {
+  init(sourcekitd: SourceKitD, snapshot: DocumentSnapshot, symbolNames: [String]) {
     self.sourcekitd = sourcekitd
     self.indexedSymbolNames = symbolNames
     self.snapshot = snapshot
   }
 
-  func parseTokens(_ response: SKResponseDictionary) -> [SemanticToken] {
+  func parseTokens(_ response: SKDResponseDictionary) -> [SemanticToken] {
         let keys = sourcekitd.keys
         guard
           let offset: Int = response[keys.nameoffset] ?? response[keys.offset],
@@ -45,7 +45,7 @@ final class SemanticTokenParser {
           tokenModifiers: 0
         )
         var children: [SemanticToken]
-        if let substructure: SKResponseArray = response[keys.substructure] {
+        if let substructure: SKDResponseArray = response[keys.substructure] {
           children = parseTokens(substructure)
         } else {
           children = []
@@ -53,9 +53,9 @@ final class SemanticTokenParser {
         return [token] + children
   }
 
-  func parseTokens(_ response: SKResponseArray) -> [SemanticToken] {
+  func parseTokens(_ response: SKDResponseArray) -> [SemanticToken] {
     var result: [SemanticToken] = []
-    response.forEach { (i: Int, value: SKResponseDictionary) in
+    response.forEach { (i: Int, value: SKDResponseDictionary) in
       let token = parseTokens(value) 
       result.append(contentsOf: token)
       return true

@@ -111,6 +111,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   var currentCompletionSession: CodeCompletionSession? = nil
 
   var commandsByFile: [DocumentURI: SwiftCompileCommand] = [:]
+	let indexProvider: IndexStoreDB?
 
   var keys: sourcekitd_keys { return sourcekitd.keys }
   var requests: sourcekitd_requests { return sourcekitd.requests }
@@ -122,13 +123,15 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     client: LocalConnection,
     sourcekitd: AbsolutePath,
     clientCapabilities: ClientCapabilities,
-    serverOptions: SourceKitServer.Options
+    serverOptions: SourceKitServer.Options,
+	indexProvider: IndexStoreDB? = nil
   ) throws {
     self.client = client
     self.sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: sourcekitd)
     self.clientCapabilities = clientCapabilities
     self.serverOptions = serverOptions
     self.documentManager = DocumentManager()
+	self.indexProvider = indexProvider
   }
 
   /// Publish diagnostics for the given `snapshot`. We withhold semantic diagnostics if we are using
@@ -479,7 +482,7 @@ extension SwiftLanguageServer {
         return
       }
 
-      let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       skreq[keys.request] = self.requests.editor_open
       skreq[keys.name] = "DocumentSemanticTokens:" + snapshot.document.uri.pseudoPath
       skreq[keys.sourcetext] = snapshot.text
@@ -489,10 +492,10 @@ extension SwiftLanguageServer {
       let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
         guard let self = self else { return }
         guard let dict = result.success else {
-          req.reply(.failure(result.failure!))
+			req.reply(.failure(ResponseError(result.failure!)))
           return
         }
-        guard let results: SKResponseArray = dict[keys.substructure] else {
+        guard let results: SKDResponseArray = dict[keys.substructure] else {
           return req.reply(DocumentSemanticTokenResponse(data: []))
         }
         
@@ -504,7 +507,7 @@ extension SwiftLanguageServer {
       
         var tokens = parser.parseTokens(results).filter { $0.tokenType != nil }
         var syntaxmap: [SemanticToken] = []
-        if let syntaxDict: SKResponseArray = dict[keys.syntaxmap] {
+        if let syntaxDict: SKDResponseArray = dict[keys.syntaxmap] {
           syntaxmap = parser.parseTokens(syntaxDict).filter { $0.tokenType == .keyword || $0.tokenType == .type }
         }
         tokens.append(contentsOf: syntaxmap)
@@ -1188,7 +1191,8 @@ func makeLocalSwiftServer(
   client: MessageHandler,
   sourcekitd: AbsolutePath,
   clientCapabilities: ClientCapabilities?,
-  options: SourceKitServer.Options
+  options: SourceKitServer.Options,
+  indexDB: IndexStoreDB? = nil
 ) throws -> ToolchainLanguageServer {
   let connectionToClient = LocalConnection()
 
@@ -1196,7 +1200,7 @@ func makeLocalSwiftServer(
     client: connectionToClient,
     sourcekitd: sourcekitd,
     clientCapabilities: clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil),
-    serverOptions: options)
+    serverOptions: options, indexProvider: indexDB)
   connectionToClient.start(handler: client)
   return server
 }

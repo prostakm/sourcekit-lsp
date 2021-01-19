@@ -94,6 +94,7 @@ public final class SourceKitServer: LanguageServer {
     registerToolchainTextDocumentRequest(SourceKitServer.foldingRange, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.documentSymbol, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.documentColor, [])
+	registerToolchainTextDocumentRequest(SourceKitServer.documentSemanticToken, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.colorPresentation, [])
     registerToolchainTextDocumentRequest(SourceKitServer.codeAction, nil)
   }
@@ -746,12 +747,13 @@ extension SourceKitServer {
     languageService.documentSymbol(req)
   }
 
-  func documentSemanticToken(
-    _ req: Request<DocumentSemanticTokenRequest>,
-     languageService: ToolchainLanguageServer
-  ) {
-    languageService.documentSemanticToken(req)
-  }
+	func documentSemanticToken(
+		_ req: Request<DocumentSemanticTokenRequest>,
+		workspace: Workspace,
+		languageService: ToolchainLanguageServer
+	) {
+		languageService.documentSemanticToken(req)
+	}
 
   func documentColor(
     _ req: Request<DocumentColorRequest>,
@@ -1036,7 +1038,9 @@ public func languageService(
       client: client,
       sourcekitd: sourcekitd,
       clientCapabilities: workspace.clientCapabilities,
-      options: options)
+      options: options,
+	  indexDB: workspace.index
+	)
 
   default:
     return nil
