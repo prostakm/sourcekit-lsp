@@ -1254,7 +1254,7 @@ func makeLocalSwiftServer(
   sourcekitd: AbsolutePath,
   clientCapabilities: ClientCapabilities?,
   options: SourceKitServer.Options,
-  indexDB: IndexStoreDB? = nil
+  indexDB: IndexStoreDB? = nil,
   reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
 ) throws -> ToolchainLanguageServer {
   let connectionToClient = LocalConnection()

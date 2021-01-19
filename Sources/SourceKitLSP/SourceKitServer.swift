@@ -1080,13 +1080,9 @@ public func languageService(
       sourcekitd: sourcekitd,
       clientCapabilities: workspace.clientCapabilities,
       options: options,
-<<<<<<< HEAD
-	  indexDB: workspace.index
+	  indexDB: workspace.index,
+      reopenDocuments: reopenDocuments
 	)
-=======
-      reopenDocuments: reopenDocuments)
->>>>>>> d9b2d65d0375c96eadbce782fe12e5b841f768eb
-
   default:
     return nil
   }
