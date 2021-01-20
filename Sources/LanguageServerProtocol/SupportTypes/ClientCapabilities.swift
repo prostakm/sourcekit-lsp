@@ -301,7 +301,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     }
   }
 
-  /// Capabilities specific to the `textDocument/semanticTokens` request.
+  /// Capabilities specific to the `textDocument/semanticTokens/full` request.
   public struct SemanticTokens: Hashable, Codable {
 
     /// Whether the client supports dynamic registaration of this request.

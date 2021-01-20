@@ -44,7 +44,7 @@ public struct ServerCapabilities: Codable, Hashable {
   /// Whether the server provides "textDocument/documentSymbol"
   public var documentSymbolProvider: Bool?
 
-  /// Whether the server provides "textDocument/semanticTokens"
+  /// Whether the server provides "textDocument/semanticTokens/full"
   public var semanticTokensProvider: SemanticTokensRegistrationOptions?
 
   /// The server provides workspace symbol support.
