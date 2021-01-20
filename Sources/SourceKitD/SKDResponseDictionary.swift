@@ -30,10 +30,10 @@ public final class SKDResponseDictionary {
     return sourcekitd.api.variant_dictionary_get_string(dict, key).map(String.init(cString:))
   }
   public subscript(key: sourcekitd_uid_t?) -> Int? {
-	let result = sourcekitd.api.variant_dictionary_get_value(dict, key)
-	if sourcekitd.api.variant_get_type(result) == SOURCEKITD_VARIANT_TYPE_NULL {
-		return nil
-	}
+    let result = sourcekitd.api.variant_dictionary_get_value(dict, key)
+    if sourcekitd.api.variant_get_type(result) == SOURCEKITD_VARIANT_TYPE_NULL {
+      return nil
+    }
     return Int(sourcekitd.api.variant_dictionary_get_int64(dict, key))
   }
   public subscript(key: sourcekitd_uid_t?) -> sourcekitd_uid_t? {

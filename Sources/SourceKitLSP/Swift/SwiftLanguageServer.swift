@@ -111,7 +111,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   var currentCompletionSession: CodeCompletionSession? = nil
 
   var commandsByFile: [DocumentURI: SwiftCompileCommand] = [:]
-	let indexProvider: IndexStoreDB?
+  let indexProvider: IndexStoreDB?
 
   var keys: sourcekitd_keys { return sourcekitd.keys }
   var requests: sourcekitd_requests { return sourcekitd.requests }
@@ -527,7 +527,7 @@ extension SwiftLanguageServer {
       let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
         guard let self = self else { return }
         guard let dict = result.success else {
-			req.reply(.failure(ResponseError(result.failure!)))
+          req.reply(.failure(ResponseError(result.failure!)))
           return
         }
         guard let results: SKDResponseArray = dict[keys.substructure] else {

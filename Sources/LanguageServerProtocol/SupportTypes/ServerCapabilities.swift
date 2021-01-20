@@ -480,15 +480,15 @@ public struct SemanticTokensRegistrationOptions: Codable, Hashable {
 
   public init(legend: TokenLegend = TokenLegend(), full: Full = Full()) {
     self.legend = legend
-	self.full = full
+    self.full = full
   }
 }
 
 public struct Full: Codable, Hashable {
-	public var delta: Bool = false
-	public init(delta: Bool = false) {
-		self.delta = delta
-	}
+  public var delta: Bool = false
+  public init(delta: Bool = false) {
+    self.delta = delta
+  }
 }
 
 
