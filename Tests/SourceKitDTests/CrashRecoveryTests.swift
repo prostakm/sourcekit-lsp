@@ -12,6 +12,7 @@
 
 import ISDBTestSupport
 import LanguageServerProtocol
+import LSPLogging
 import SourceKitLSP
 import SourceKitD
 import SKTestSupport
@@ -45,7 +46,20 @@ final class CrashRecoveryTests: XCTestCase {
     let ws = try! staticSourceKitTibsWorkspace(name: "sourcekitdCrashRecovery")!
     let loc = ws.testLoc("loc")
 
+    // Open the document. Wait for the semantic diagnostics to know it has been fully opened and we are not entering any data races about outstanding diagnostics when we crash sourcekitd.
+
+    let documentOpened = self.expectation(description: "documentOpened")
+    documentOpened.expectedFulfillmentCount = 2
+    ws.sk.handleNextNotification({ (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+      documentOpened.fulfill()
+    })
+    ws.sk.appendOneShotNotificationHandler({ (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      documentOpened.fulfill()
+    })
     try! ws.openDocument(loc.url, language: .swift)
+    self.wait(for: [documentOpened], timeout: 10)
 
     // Make a change to the file that's not saved to disk. This way we can check that we re-open the correct in-memory state.
 
@@ -55,7 +69,11 @@ final class CrashRecoveryTests: XCTestCase {
         print("Hello world")
       }
       """)
-    ws.sk.send(DidChangeTextDocumentNotification(textDocument: VersionedTextDocumentIdentifier(loc.docUri, version: 2), contentChanges: [addFuncChange]))
+    ws.sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: VersionedTextDocumentIdentifier(loc.docUri, version: 2), contentChanges: [addFuncChange]), { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
+      log("Received diagnostics for text edit - syntactic")
+    }, { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
+      log("Received diagnostics for text edit - semantic")
+    })
 
     // Do a sanity check and verify that we get the expected result from a hover response before crashing sourcekitd.
 
@@ -108,9 +126,9 @@ final class CrashRecoveryTests: XCTestCase {
   /// Crashes clangd and waits for it to restart
   /// - Parameters:
   ///   - ws: The workspace for which the clangd server shall be crashed
-  ///   - loc: A test location that points to the first line of a given file. This line needs to be otherwise empty.
-  private func crashClangd(for ws: SKTibsTestWorkspace, firstLineLoc loc: TestLocation) {
-    let clangdServer = ws.testServer.server!._languageService(for: loc.docUri, .cpp, in: ws.testServer.server!.workspace!)!
+  ///   - document: The URI of a C/C++/... document in the workspace
+  private func crashClangd(for ws: SKTibsTestWorkspace, document docUri: DocumentURI) {
+    let clangdServer = ws.testServer.server!._languageService(for: docUri, .cpp, in: ws.testServer.server!.workspace!)!
     
     let clangdCrashed = self.expectation(description: "clangd crashed")
     let clangdRestarted = self.expectation(description: "clangd restarted")
@@ -126,21 +144,13 @@ final class CrashRecoveryTests: XCTestCase {
       }
     }
 
-    // Add a pragma to crash clang
-    let addCrashPragma = TextDocumentContentChangeEvent(range: loc.position..<loc.position, rangeLength: 0, text: "#pragma clang __debug crash\n")
-    ws.sk.send(DidChangeTextDocumentNotification(textDocument: VersionedTextDocumentIdentifier(loc.docUri, version: 3), contentChanges: [addCrashPragma]))
+    clangdServer._crash()
 
     self.wait(for: [clangdCrashed], timeout: 5)
-
-    // Once clangds has crashed, remove the pragma again to allow it to restart
-    let removeCrashPragma = TextDocumentContentChangeEvent(range: loc.position..<Position(line: 1, utf16index: 0), rangeLength: 28, text: "")
-    ws.sk.send(DidChangeTextDocumentNotification(textDocument: VersionedTextDocumentIdentifier(loc.docUri, version: 4), contentChanges: [removeCrashPragma]))
-
     self.wait(for: [clangdRestarted], timeout: 30)
   }
 
   func testClangdCrashRecovery() throws {
-    throw XCTSkip("failing on rebranch - rdar://73717447")
     try XCTSkipUnless(longTestsEnabled)
 
     let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
@@ -167,7 +177,7 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Crash clangd
 
-    crashClangd(for: ws, firstLineLoc: loc)
+    crashClangd(for: ws, document: loc.docUri)
 
     // Check that we have re-opened the document with the correct in-memory state
 
@@ -178,7 +188,6 @@ final class CrashRecoveryTests: XCTestCase {
   }
     
   func testClangdCrashRecoveryReopensWithCorrectBuildSettings() throws {
-    throw XCTSkip("failing on rebranch - rdar://73717447")
     try XCTSkipUnless(longTestsEnabled)
 
     let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings")!
@@ -199,7 +208,7 @@ final class CrashRecoveryTests: XCTestCase {
     
     // Crash clangd
 
-    crashClangd(for: ws, firstLineLoc: loc)
+    crashClangd(for: ws, document: loc.docUri)
     
     // Check that we have re-opened the document with the correct build settings
     // If we did not recover the correct build settings, document highlight would
@@ -212,7 +221,6 @@ final class CrashRecoveryTests: XCTestCase {
   }
   
   func testPreventClangdCrashLoop() throws {
-    throw XCTSkip("failing on rebranch - rdar://73717447")
     try XCTSkipUnless(longTestsEnabled)
 
     let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
@@ -231,53 +239,38 @@ final class CrashRecoveryTests: XCTestCase {
     
     let clangdCrashed = self.expectation(description: "clangd crashed")
     clangdCrashed.assertForOverFulfill = false
-    // assertForOverFulfill is not working on Linux (SR-12575). Manually keep track if we have already called fulfill on the expectation
-    var clangdCrashedFulfilled = false
     
     let clangdRestartedFirstTime = self.expectation(description: "clangd restarted for the first time")
-    
     let clangdRestartedSecondTime = self.expectation(description: "clangd restarted for the second time")
-    clangdRestartedSecondTime.assertForOverFulfill = false
-    // assertForOverFulfill is not working on Linux (SR-12575). Manually keep track if we have already called fulfill on the expectation
-    var clangdRestartedSecondTimeFulfilled = false
-    
+
     var clangdHasRestartedFirstTime = false
 
     clangdServer.addStateChangeHandler { (oldState, newState) in
       switch newState {
       case .connectionInterrupted:
-        if !clangdCrashedFulfilled {
-          clangdCrashed.fulfill()
-          clangdCrashedFulfilled = true
-        }
+        clangdCrashed.fulfill()
       case .connected:
         if !clangdHasRestartedFirstTime {
           clangdRestartedFirstTime.fulfill()
           clangdHasRestartedFirstTime = true
         } else {
-          if !clangdRestartedSecondTimeFulfilled {
-            clangdRestartedSecondTime.fulfill()
-            clangdRestartedSecondTimeFulfilled = true
-          }
+          clangdRestartedSecondTime.fulfill()
         }
       default:
         break
       }
     }
 
-    // Add a pragma to crash clang
-    
-    let addCrashPragma = TextDocumentContentChangeEvent(range: loc.position..<loc.position, rangeLength: 0, text: "#pragma clang __debug crash\n")
-    ws.sk.send(DidChangeTextDocumentNotification(textDocument: VersionedTextDocumentIdentifier(loc.docUri, version: 3), contentChanges: [addCrashPragma]))
+    clangdServer._crash()
 
     self.wait(for: [clangdCrashed], timeout: 5)
-
-    // Clangd has crashed for the first time. Leave the pragma there to crash clangd once again.
-    
     self.wait(for: [clangdRestartedFirstTime], timeout: 30)
     // Clangd has restarted. Note the date so we can check that the second restart doesn't happen too quickly.
     let firstRestartDate = Date()
-    
+
+    // Crash clangd again. This time, it should only restart after a delay.
+    clangdServer._crash()
+
     self.wait(for: [clangdRestartedSecondTime], timeout: 30)
     XCTAssert(Date().timeIntervalSince(firstRestartDate) > 5, "Clangd restarted too quickly after crashing twice in a row. We are not preventing crash loops.")
   }
