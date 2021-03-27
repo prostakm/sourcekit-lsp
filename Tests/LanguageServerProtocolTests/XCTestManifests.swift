@@ -6,8 +6,10 @@ extension CodingTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__CodingTests = [
+        ("testCallHierarchyIncomingCallRanges", testCallHierarchyIncomingCallRanges),
         ("testCustomCodableOptional", testCustomCodableOptional),
         ("testPositionRange", testPositionRange),
+        ("testPositionRangeArray", testPositionRangeArray),
         ("testValueCoding", testValueCoding),
         ("testValueOrBool", testValueOrBool),
     ]
@@ -29,6 +31,7 @@ extension LanguageServerProtocolTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__LanguageServerProtocolTests = [
+        ("testFileChangeTypeEncoding", testFileChangeTypeEncoding),
         ("testLanguageXFlag", testLanguageXFlag),
         ("testURLEscaping", testURLEscaping),
     ]

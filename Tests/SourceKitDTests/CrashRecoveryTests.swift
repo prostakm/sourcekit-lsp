@@ -41,6 +41,7 @@ fileprivate extension HoverResponse {
 
 final class CrashRecoveryTests: XCTestCase {
   func testSourcekitdCrashRecovery() throws {
+    try XCTSkipUnless(isDarwinHost, "Linux and Windows use in-process sourcekitd")
     try XCTSkipUnless(longTestsEnabled)
 
     let ws = try! staticSourceKitTibsWorkspace(name: "sourcekitdCrashRecovery")!

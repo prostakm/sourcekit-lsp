@@ -89,6 +89,8 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
 
   public var didChangeConfiguration: DynamicRegistrationCapability? = nil
 
+  /// Whether the clients supports file watching - note that the protocol currently doesn't
+  /// support static registration for file changes.
   public var didChangeWatchedFiles: DynamicRegistrationCapability? = nil
 
   public var symbol: Symbol? = nil
@@ -451,6 +453,8 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
   public var foldingRange: FoldingRange? = nil
 
+  public var callHierarchy: DynamicRegistrationCapability? = nil
+
   public init(synchronization: Synchronization? = nil,
               completion: Completion? = nil,
               hover: Hover? = nil,
@@ -472,7 +476,8 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
               colorProvider: DynamicRegistrationCapability? = nil,
               rename: DynamicRegistrationCapability? = nil,
               publishDiagnostics: PublishDiagnostics? = nil,
-              foldingRange: FoldingRange? = nil) {
+              foldingRange: FoldingRange? = nil,
+              callHierarchy: DynamicRegistrationCapability? = nil) {
     self.synchronization = synchronization
     self.completion = completion
     self.hover = hover
@@ -495,5 +500,6 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     self.rename = rename
     self.publishDiagnostics = publishDiagnostics
     self.foldingRange = foldingRange
+    self.callHierarchy = callHierarchy
   }
 }

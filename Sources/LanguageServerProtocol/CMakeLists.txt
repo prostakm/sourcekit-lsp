@@ -12,6 +12,7 @@ add_library(LanguageServerProtocol
 
   Notifications/CancelRequestNotification.swift
   Notifications/ConfigurationNotification.swift
+  Notifications/DidChangeWatchedFilesNotification.swift
   Notifications/DidChangeWorkspaceFoldersNotification.swift
   Notifications/ExitNotification.swift
   Notifications/InitializedNotification.swift
@@ -21,6 +22,9 @@ add_library(LanguageServerProtocol
   Notifications/TextSynchronizationNotifications.swift
 
   Requests/ApplyEditRequest.swift
+  Requests/CallHierarchyIncomingCallsRequest.swift
+  Requests/CallHierarchyOutgoingCallsRequest.swift
+  Requests/CallHierarchyPrepareRequest.swift
   Requests/CodeActionRequest.swift
   Requests/ColorPresentationRequest.swift
   Requests/CompletionRequest.swift
@@ -36,12 +40,15 @@ add_library(LanguageServerProtocol
   Requests/InitializeRequest.swift
   Requests/PollIndexRequest.swift
   Requests/ReferencesRequest.swift
+  Requests/RegisterCapabilityRequest.swift
   Requests/ShowMessageRequest.swift
   Requests/ShutdownRequest.swift
   Requests/SymbolInfoRequest.swift
+  Requests/UnregisterCapabilityRequest.swift
   Requests/WorkspaceFoldersRequest.swift
   Requests/WorkspaceSymbolsRequest.swift
 
+  SupportTypes/CallHierarchyItem.swift
   SupportTypes/ClientCapabilities.swift
   SupportTypes/CodeActionKind.swift
   SupportTypes/Command.swift
@@ -49,6 +56,8 @@ add_library(LanguageServerProtocol
   SupportTypes/CompletionItemKind.swift
   SupportTypes/Diagnostic.swift
   SupportTypes/DocumentURI.swift
+  SupportTypes/FileEvent.swift
+  SupportTypes/FileSystemWatcher.swift
   SupportTypes/FoldingRangeKind.swift
   SupportTypes/Language.swift
   SupportTypes/Location.swift
@@ -57,6 +66,7 @@ add_library(LanguageServerProtocol
   SupportTypes/LSPAny.swift
   SupportTypes/MarkupContent.swift
   SupportTypes/Position.swift
+  SupportTypes/RegistrationOptions.swift
   SupportTypes/ServerCapabilities.swift
   SupportTypes/SKCompletionOptions.swift
   SupportTypes/SymbolKind.swift
